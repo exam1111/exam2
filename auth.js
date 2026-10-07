@@ -3,7 +3,7 @@ const TEACHER_SESSION_KEY = "exam_teacher_session";
 const STUDENT_SESSION_KEY = "exam_student_session";
 const TEACHER_RECORD_KEY = "exam_teacher_record";
 
-/* اسم المستخدم وكلمة المرور محفوظان في ملف .env على الخادم (server.js) ولا يوجدان في هذا الملف. */
+/* اسم المستخدم وكلمة المرور محفوظان في ملف exam.env على الخادم (server.js) ولا يوجدان في هذا الملف. */
 function getTeacherRecord() {
   try {
     const saved = JSON.parse(localStorage.getItem(TEACHER_RECORD_KEY) || "null");
