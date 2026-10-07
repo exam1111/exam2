@@ -11,9 +11,15 @@ const ENV_PATH = path.join(ROOT, ENV_FILE);
 function loadEnv() {
   const out = {};
   if (!fs.existsSync(ENV_PATH)) return out;
-  fs.readFileSync(ENV_PATH, "utf8").split(/\r?\n/).forEach((line) => {
-    const m = line.match(/^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)\s*$/);
-    if (m && !line.trim().startsWith("#")) out[m[1]] = m[2];
+  // يتجاهل BOM وأسطر التعليق، ويقبل القيم بين علامتي اقتباس أو بدونها
+  fs.readFileSync(ENV_PATH, "utf8").replace(/^\uFEFF/, "").split(/\r?\n/).forEach((line) => {
+    const t = line.trim();
+    if (!t || t.startsWith("#")) return;
+    const m = t.match(/^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!m) return;
+    let v = m[2].trim();
+    if (v.length >= 2 && ((v[0] === '"' && v.endsWith('"')) || (v[0] === "'" && v.endsWith("'")))) v = v.slice(1, -1);
+    out[m[1]] = v;
   });
   return out;
 }
@@ -76,11 +82,14 @@ http.createServer(async (req, res) => {
     if (blocked(ip)) return json(res, 429, { ok: false, message: "محاولات كثيرة. انتظر دقيقة ثم حاول مرة أخرى." });
     const { username = "", password = "" } = await readBody(req);
     env = loadEnv();
-    if (safeEqual(String(username).trim().toLowerCase(), env.TEACHER_USERNAME.toLowerCase()) && safeEqual(password, env.TEACHER_PASSWORD)) {
+    const userOk = safeEqual(String(username).trim().toLowerCase(), env.TEACHER_USERNAME.trim().toLowerCase());
+    const passOk = safeEqual(password, env.TEACHER_PASSWORD);
+    if (userOk && passOk) {
       fails.delete(ip);
       return json(res, 200, { ok: true, username: env.TEACHER_USERNAME });
     }
     noteFail(ip);
+    console.log("[دخول فاشل] اسم المستخدم " + (userOk ? "مطابق" : "غير مطابق") + " — كلمة المرور " + (passOk ? "مطابقة" : "غير مطابقة"));
     return json(res, 401, { ok: false, message: "اسم المستخدم أو كلمة المرور غير صحيحة." });
   }
 
@@ -112,4 +121,8 @@ http.createServer(async (req, res) => {
     res.writeHead(200, { "Content-Type": MIME[path.extname(file).toLowerCase()] || "application/octet-stream" });
     res.end(buf);
   });
-}).listen(PORT, () => console.log("الموقع يعمل على: http://localhost:" + PORT));
+}).listen(PORT, () => {
+  console.log("الموقع يعمل على: http://localhost:" + PORT);
+  console.log("ملف الإعدادات: " + ENV_PATH);
+  console.log("اسم المستخدم المحمّل: " + env.TEACHER_USERNAME + " — طول كلمة المرور: " + env.TEACHER_PASSWORD.length + " حرفًا");
+});
